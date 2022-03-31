@@ -1,12 +1,15 @@
 type Constructable = { new(...args: any[]): any; };
 type Item = { [key: string]: any | any[] };
+type AbilitySubject = "ALL" | Constructable;
+type AbilityWhere = Item | Item[];
+type RuleResult = { rule: Ability | undefined, result: boolean };
 
-export class Ability {
+class Ability {
     constructor(
         public readonly permission: Permission,
         public readonly action: AbilityAction,
-        public readonly subject: "ALL" | Constructable,
-        public readonly where?: Item,
+        public readonly subject: AbilitySubject,
+        public readonly where?: AbilityWhere,
         public readonly blacklist?: Array<string>) {
     }
 }
@@ -25,15 +28,19 @@ enum Permission {
 }
 
 export class AbilityBuilder {
-    readonly abilities: Ability[] = [];
+    private abilities: Ability[] = [];
 
-    can = (action: AbilityAction, subject: "ALL" | Constructable, where?: Item, blacklist?: Array<string>) => {
+    can = (action: AbilityAction, subject: AbilitySubject, where?: AbilityWhere, blacklist?: Array<string>) => {
         this.abilities.push(new Ability(Permission.Can, action, subject, where, blacklist));
     };
 
-    cannot = (action: AbilityAction, subject: "ALL" | Constructable, where?: Item) => {
+    cannot = (action: AbilityAction, subject: AbilitySubject, where?: AbilityWhere) => {
         this.abilities.push(new Ability(Permission.Cannot, action, subject, where));
     };
+
+    create = () => {
+        return new AbilityValidator(this.abilities);
+    }
 }
 
 export class AbilityValidator {
@@ -45,7 +52,7 @@ export class AbilityValidator {
             (ability.action === AbilityAction.Manage || ability.action === action);
     }
 
-    private static whereMatchesOptional(item: Item, where?: Item): boolean {
+    private static whereMatchesOptional(item: Item, where?: AbilityWhere): boolean {
         if (!where) return true;
         let sharedProperties: { [key: string]: any } = {};
         for (const [prop, value] of Object.entries(where)) {
@@ -53,6 +60,25 @@ export class AbilityValidator {
             sharedProperties[prop] = value;
         }
         return this.whereMatches(item, sharedProperties);
+    }
+
+    private static anyWhereMatches(item: Item, where?: AbilityWhere, matchAll: boolean = true): boolean {
+        if (!where) return true;
+        if (where instanceof Array) {
+            for (let singleWhere of where) {
+                if (matchAll ?
+                    AbilityValidator.whereMatches(item, singleWhere) :
+                    AbilityValidator.whereMatchesOptional(item, singleWhere)
+                ) {
+                    return true;
+                }
+            }
+            return false;
+        } else {
+            return matchAll ?
+                AbilityValidator.whereMatches(item, where) :
+                AbilityValidator.whereMatchesOptional(item, where);
+        }
     }
 
     private static whereMatches(item: Item, where?: Item): boolean {
@@ -105,60 +131,86 @@ export class AbilityValidator {
         return false;
     }
 
-    canCreate(item: Item) {
-        return this.can(AbilityAction.Create, item);
-    }
-
-    canRetrieve(item: Item) {
-        return this.can(AbilityAction.Retrieve, item);
-    }
-
-    canDelete(item: Item) {
-        return this.can(AbilityAction.Delete, item);
-    }
-
-    canUpdate(item: Item, updatedItem: Item) {
-        let can = false;
-        for (let ability of this.abilities) {
-            if (AbilityValidator.domainMatches(ability, AbilityAction.Update, item)) {
-                switch (ability.permission) {
-                    case Permission.Can:
-                        if (
-                            AbilityValidator.whereMatches(item, ability.where) &&
-                            AbilityValidator.whereMatchesOptional(updatedItem, ability.where)
-                        ) {
-                            can = !AbilityValidator.isUpdateBlacklisted(ability.blacklist, item, updatedItem);
-                        }
-                        break;
-                    case Permission.Cannot:
-                        if (AbilityValidator.whereMatches(item, ability.where) || AbilityValidator.whereMatches(updatedItem, ability.where)) {
-                            can = false;
-                        }
-                        break;
+    getRuleFor(action: AbilityAction, item: Item, updatedItem?: Item): RuleResult {
+        switch (action) {
+            case AbilityAction.Create:
+            case AbilityAction.Retrieve:
+            case AbilityAction.Delete:
+                return this.can(action, item);
+            case AbilityAction.Update:
+                if (!updatedItem) {
+                    throw Error("You must provide the updatedItem with the Update action.");
                 }
-            }
+                return this.canModify(action, item, updatedItem);
+            case AbilityAction.Manage:
+                throw Error("You can not check the rule for manage. Manage is a shortcut for all other abilities.");
         }
-        return can;
     }
 
-    private can(action: AbilityAction, item: Item) {
+    canCreate(item: Item): boolean {
+        return this.can(AbilityAction.Create, item).result;
+    }
+
+    canRetrieve(item: Item): boolean {
+        return this.can(AbilityAction.Retrieve, item).result;
+    }
+
+    canDelete(item: Item): boolean {
+        return this.can(AbilityAction.Delete, item).result;
+    }
+
+    canUpdate(item: Item, updatedItem: Item): boolean {
+        return this.canModify(AbilityAction.Update, item, updatedItem).result;
+    }
+
+    private canModify(action: AbilityAction, item: Item, updatedItem: Item): RuleResult {
         let can = false;
+        let finalRule = undefined;
         for (let ability of this.abilities) {
             if (AbilityValidator.domainMatches(ability, action, item)) {
                 switch (ability.permission) {
                     case Permission.Can:
-                        if (AbilityValidator.whereMatches(item, ability.where)) {
-                            can = !AbilityValidator.isBlacklisted(ability.blacklist, item);
+                        if (
+                            AbilityValidator.anyWhereMatches(item, ability.where) &&
+                            AbilityValidator.anyWhereMatches(updatedItem, ability.where, false)
+                        ) {
+                            finalRule = ability;
+                            can = !AbilityValidator.isUpdateBlacklisted(ability.blacklist, item, updatedItem);
                         }
                         break;
                     case Permission.Cannot:
-                        if (AbilityValidator.whereMatches(item, ability.where)) {
+                        if (AbilityValidator.anyWhereMatches(item, ability.where) || AbilityValidator.anyWhereMatches(updatedItem, ability.where)) {
+                            finalRule = ability;
                             can = false;
                         }
                         break;
                 }
             }
         }
-        return can;
+        return {rule: finalRule, result: can}
+    }
+
+    private can(action: AbilityAction, item: Item): RuleResult {
+        let can = false;
+        let finalRule = undefined;
+        for (let ability of this.abilities) {
+            if (AbilityValidator.domainMatches(ability, action, item)) {
+                switch (ability.permission) {
+                    case Permission.Can:
+                        if (AbilityValidator.anyWhereMatches(item, ability.where)) {
+                            finalRule = ability;
+                            can = !AbilityValidator.isBlacklisted(ability.blacklist, item);
+                        }
+                        break;
+                    case Permission.Cannot:
+                        if (AbilityValidator.anyWhereMatches(item, ability.where)) {
+                            finalRule = ability;
+                            can = false;
+                        }
+                        break;
+                }
+            }
+        }
+        return {rule: finalRule, result: can};
     }
 }
