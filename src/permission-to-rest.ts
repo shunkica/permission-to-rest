@@ -28,7 +28,7 @@ enum Permission {
 }
 
 export class AbilityBuilder {
-    private abilities: Ability[] = [];
+    private abilities: Array<Ability> = [];
 
     can = (action: AbilityAction, subject: AbilitySubject, where?: AbilityWhere, blacklist?: Array<string>) => {
         this.abilities.push(new Ability(Permission.Can, action, subject, where, blacklist));
@@ -52,7 +52,7 @@ export class AbilityValidator {
             (ability.action === AbilityAction.Manage || ability.action === action);
     }
 
-    private static whereMatchesOptional(item: Item, where?: AbilityWhere): boolean {
+    private static whereMatchesOptional(item: Item, where?: Item): boolean {
         if (!where) return true;
         let sharedProperties: { [key: string]: any } = {};
         for (const [prop, value] of Object.entries(where)) {
