@@ -194,6 +194,25 @@ describe("abilityvalidator tests", () => {
         });
 
     });
+
+    describe("abilityvalidator getRuleFor test", () => {
+        it("returns undefined and false if no rules matched", () => {
+            let ability = ab.create();
+            expect(ability.getRuleFor(Create,{})).toEqual({rule: undefined, result: false});
+            expect(ability.getRuleFor(Update,{},{})).toEqual({rule: undefined, result: false});
+            expect(ability.getRuleFor(Delete,{})).toEqual({rule: undefined, result: false});
+            expect(ability.getRuleFor(Retrieve,{})).toEqual({rule: undefined, result: false});
+        })
+
+        it("returns the matched rule", () => {
+            can(Manage,All);
+            let ability = ab.create();
+            expect(ability.getRuleFor(Create,{})).toEqual({rule: {permission: "CAN", action: "MANAGE", subject: "ALL"}, result: true});
+            expect(ability.getRuleFor(Update,{},{})).toEqual({rule: {permission: "CAN", action: "MANAGE", subject: "ALL"}, result: true});
+            expect(ability.getRuleFor(Delete,{})).toEqual({rule: {permission: "CAN", action: "MANAGE", subject: "ALL"}, result: true});
+            expect(ability.getRuleFor(Retrieve,{})).toEqual({rule: {permission: "CAN", action: "MANAGE", subject: "ALL"}, result: true});
+        })
+    })
 });
 
 function testAbilities(ability: AbilityValidator, canCreate: boolean, canRetrieve: boolean, canUpdate: boolean, canDelete: boolean, item = {}, updateItem = {}) {
