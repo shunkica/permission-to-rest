@@ -47,8 +47,9 @@ export class AbilityValidator {
     constructor(private readonly abilities: Array<Ability>) {
     }
 
-    private static domainMatches(ability: Ability, action: AbilityAction, item: Item) {
-        return (ability.subject === "ALL" || ability.subject === item.constructor) &&
+    private static domainMatches(ability: Ability, action: AbilityAction, item: Item, subject?: Constructable) {
+        if (!subject) subject = item.constructor as Constructable;
+        return (ability.subject === "ALL" || ability.subject === subject) &&
             (ability.action === AbilityAction.Manage || ability.action === action);
     }
 
@@ -131,43 +132,43 @@ export class AbilityValidator {
         return false;
     }
 
-    getRuleFor(action: AbilityAction, item: Item, updatedItem?: Item): RuleResult {
+    getRuleFor(action: AbilityAction, item: Item, updatedItem?: Item, subject?: Constructable): RuleResult {
         switch (action) {
             case AbilityAction.Create:
             case AbilityAction.Retrieve:
             case AbilityAction.Delete:
-                return this.can(action, item);
+                return this.can(action, item, subject);
             case AbilityAction.Update:
                 if (!updatedItem) {
                     throw Error("You must provide the updatedItem with the Update action.");
                 }
-                return this.canModify(action, item, updatedItem);
+                return this.canModify(action, item, updatedItem, subject);
             case AbilityAction.Manage:
                 throw Error("You can not check the rule for manage. Manage is a shortcut for all other abilities.");
         }
     }
 
-    canCreate(item: Item): boolean {
-        return this.can(AbilityAction.Create, item).result;
+    canCreate(item: Item, subject?: Constructable): boolean {
+        return this.can(AbilityAction.Create, item, subject).result;
     }
 
-    canRetrieve(item: Item): boolean {
-        return this.can(AbilityAction.Retrieve, item).result;
+    canRetrieve(item: Item, subject?: Constructable): boolean {
+        return this.can(AbilityAction.Retrieve, item, subject).result;
     }
 
-    canDelete(item: Item): boolean {
-        return this.can(AbilityAction.Delete, item).result;
+    canDelete(item: Item, subject?: Constructable): boolean {
+        return this.can(AbilityAction.Delete, item, subject).result;
     }
 
-    canUpdate(item: Item, updatedItem: Item): boolean {
-        return this.canModify(AbilityAction.Update, item, updatedItem).result;
+    canUpdate(item: Item, updatedItem: Item, subject?: Constructable): boolean {
+        return this.canModify(AbilityAction.Update, item, updatedItem, subject).result;
     }
 
-    private canModify(action: AbilityAction, item: Item, updatedItem: Item): RuleResult {
+    private canModify(action: AbilityAction, item: Item, updatedItem: Item, subject?: Constructable): RuleResult {
         let can = false;
         let finalRule = undefined;
         for (let ability of this.abilities) {
-            if (AbilityValidator.domainMatches(ability, action, item)) {
+            if (AbilityValidator.domainMatches(ability, action, item, subject)) {
                 switch (ability.permission) {
                     case Permission.Can:
                         if (
@@ -190,11 +191,11 @@ export class AbilityValidator {
         return {rule: finalRule, result: can}
     }
 
-    private can(action: AbilityAction, item: Item): RuleResult {
+    private can(action: AbilityAction, item: Item, subject?: Constructable): RuleResult {
         let can = false;
         let finalRule = undefined;
         for (let ability of this.abilities) {
-            if (AbilityValidator.domainMatches(ability, action, item)) {
+            if (AbilityValidator.domainMatches(ability, action, item, subject)) {
                 switch (ability.permission) {
                     case Permission.Can:
                         if (AbilityValidator.anyWhereMatches(item, ability.where)) {

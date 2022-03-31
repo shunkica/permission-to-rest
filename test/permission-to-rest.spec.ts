@@ -198,26 +198,73 @@ describe("abilityvalidator tests", () => {
     describe("abilityvalidator getRuleFor test", () => {
         it("returns undefined and false if no rules matched", () => {
             let ability = ab.create();
-            expect(ability.getRuleFor(Create,{})).toEqual({rule: undefined, result: false});
-            expect(ability.getRuleFor(Update,{},{})).toEqual({rule: undefined, result: false});
-            expect(ability.getRuleFor(Delete,{})).toEqual({rule: undefined, result: false});
-            expect(ability.getRuleFor(Retrieve,{})).toEqual({rule: undefined, result: false});
+            expect(ability.getRuleFor(Create, {})).toEqual({rule: undefined, result: false});
+            expect(ability.getRuleFor(Update, {}, {})).toEqual({rule: undefined, result: false});
+            expect(ability.getRuleFor(Delete, {})).toEqual({rule: undefined, result: false});
+            expect(ability.getRuleFor(Retrieve, {})).toEqual({rule: undefined, result: false});
         })
 
         it("returns the matched rule", () => {
-            can(Manage,All);
+            can(Manage, All);
             let ability = ab.create();
-            expect(ability.getRuleFor(Create,{})).toEqual({rule: {permission: "CAN", action: "MANAGE", subject: "ALL"}, result: true});
-            expect(ability.getRuleFor(Update,{},{})).toEqual({rule: {permission: "CAN", action: "MANAGE", subject: "ALL"}, result: true});
-            expect(ability.getRuleFor(Delete,{})).toEqual({rule: {permission: "CAN", action: "MANAGE", subject: "ALL"}, result: true});
-            expect(ability.getRuleFor(Retrieve,{})).toEqual({rule: {permission: "CAN", action: "MANAGE", subject: "ALL"}, result: true});
+            expect(ability.getRuleFor(Create, {})).toEqual({
+                rule: {permission: "CAN", action: "MANAGE", subject: "ALL"},
+                result: true
+            });
+            expect(ability.getRuleFor(Update, {}, {})).toEqual({
+                rule: {
+                    permission: "CAN",
+                    action: "MANAGE",
+                    subject: "ALL"
+                }, result: true
+            });
+            expect(ability.getRuleFor(Delete, {})).toEqual({
+                rule: {permission: "CAN", action: "MANAGE", subject: "ALL"},
+                result: true
+            });
+            expect(ability.getRuleFor(Retrieve, {})).toEqual({
+                rule: {
+                    permission: "CAN",
+                    action: "MANAGE",
+                    subject: "ALL"
+                }, result: true
+            });
         })
-    })
+    });
+
+    describe("abilityvalidator subject override test", () => {
+        it("works when subject is the same as item", () => {
+            can(Manage, Foo);
+            testAbilities(ab.create(),true,true,true,true,new Foo(),{},Foo);
+        });
+
+        it("works when subject is not the same as item", () => {
+            can(Manage, Bar);
+            testAbilities(ab.create(),true,true,true,true,new Foo(),{},Bar);
+        });
+
+        it("doesn't work when subject is not the same as rule", () => {
+            can(Manage, Foo);
+            testAbilities(ab.create(),false,false,false,false,new Foo(),{},Bar);
+        })
+
+        it("works with plain objects", () => {
+            can(Manage, Foo);
+            testAbilities(ab.create(),true,true,true,true, {},{},Foo);
+        })
+    });
 });
 
-function testAbilities(ability: AbilityValidator, canCreate: boolean, canRetrieve: boolean, canUpdate: boolean, canDelete: boolean, item = {}, updateItem = {}) {
-    expect(ability.canCreate(item)).toEqual(canCreate);
-    expect(ability.canRetrieve(item)).toEqual(canRetrieve);
-    expect(ability.canUpdate(item, updateItem)).toEqual(canUpdate);
-    expect(ability.canDelete(item)).toEqual(canDelete);
+function testAbilities(ability: AbilityValidator, canCreate: boolean, canRetrieve: boolean, canUpdate: boolean, canDelete: boolean, item = {}, updateItem = {}, subject?: { new(...args: any[]): any }) {
+    if (subject) {
+        expect(ability.canCreate(item, subject)).toEqual(canCreate);
+        expect(ability.canRetrieve(item, subject)).toEqual(canRetrieve);
+        expect(ability.canUpdate(item, updateItem, subject)).toEqual(canUpdate);
+        expect(ability.canDelete(item, subject)).toEqual(canDelete);
+    } else {
+        expect(ability.canCreate(item)).toEqual(canCreate);
+        expect(ability.canRetrieve(item)).toEqual(canRetrieve);
+        expect(ability.canUpdate(item, updateItem)).toEqual(canUpdate);
+        expect(ability.canDelete(item)).toEqual(canDelete);
+    }
 }
