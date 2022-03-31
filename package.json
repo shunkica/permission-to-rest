@@ -1,0 +1,40 @@
+{
+  "name": "permission-to-rest",
+  "version": "0.0.1-alpha",
+  "description": "Simple authorization for restful services",
+  "scripts": {
+    "tsc": "rimraf ./lib && tsc -p tsconfig.json && tsc -p tsconfig-cjs.json",
+    "prepublish": "npm run tsc",
+    "test": "jest"
+  },
+  "keywords": [],
+  "author": "shunkica",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^27.4.1",
+    "@types/node": "*",
+    "jest": "^27.5.1",
+    "rimraf": "^3.0.2",
+    "ts-jest": "^27.1.4",
+    "ts-node": "^10.7.0",
+    "typescript": "^4.6.3"
+  },
+  "main": "./lib/cjs/index.js",
+  "module": "./lib/esm/index.js",
+  "files": [
+    "lib/"
+  ],
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "test",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "testEnvironment": "node"
+  }
+}
